@@ -55,6 +55,14 @@ func (e *env) extractTargetKind(pathKeys []string) (finalKind reflect.Kind) {
 					finalKind = field.Type.Kind()
 					break
 				} else {
+					recordType := skipPointers(field.Type)
+
+					if recordType.Kind() == reflect.Map { // we can not go deep into map for now
+						valueType := recordType.Elem()
+
+						return valueType.Kind()
+					}
+
 					field, found = skipPointers(field.Type).FieldByName(pathKeys[i])
 
 					if !found {
@@ -66,6 +74,34 @@ func (e *env) extractTargetKind(pathKeys []string) (finalKind reflect.Kind) {
 	}
 
 	return finalKind
+}
+
+var (
+	supportedKinds = []reflect.Kind{
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.String,
+	}
+)
+
+func contains(s []reflect.Kind, e reflect.Kind) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *env) Read() (*source.ChangeSet, error) {
@@ -102,7 +138,7 @@ func (e *env) Read() (*source.ChangeSet, error) {
 			if i == 0 {
 				kindFromConfig := e.extractTargetKind(originalKeys)
 
-				if kindFromConfig != reflect.Invalid {
+				if contains(supportedKinds, kindFromConfig) {
 					switch kindFromConfig {
 					case reflect.Bool:
 						if v, err := strconv.ParseBool(value); err != nil {
