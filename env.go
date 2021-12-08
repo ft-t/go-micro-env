@@ -1,11 +1,11 @@
 package go_micro_env
 
 import (
+	"encoding/json"
 	"github.com/imdario/mergo"
 	"go-micro.dev/v4/config/source"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -128,73 +128,34 @@ func (e *env) Read() (*source.ChangeSet, error) {
 
 		pair := strings.SplitN(env, "=", 2)
 		value := pair[1]
-		originalKeys := strings.Split(pair[0], "_")
-		keys := strings.Split(strings.ToLower(pair[0]), "_")
+		keys := strings.Split(pair[0], "_")
 		reverse(keys)
 
-		tmp := make(map[string]interface{})
+		tmpValue := strings.TrimSpace(value)
 
+		tmp := make(map[string]interface{})
 		for i, k := range keys {
 			if i == 0 {
-				kindFromConfig := e.extractTargetKind(originalKeys)
+				if strings.HasPrefix(tmpValue, "{") && strings.HasSuffix(tmpValue, "}") {
+					rec := map[string]interface{}{}
 
-				if contains(supportedKinds, kindFromConfig) {
-					switch kindFromConfig {
-					case reflect.Bool:
-						if v, err := strconv.ParseBool(value); err != nil {
-							return nil, err
-						} else {
-							tmp[k] = v
-						}
-					case reflect.Int8:
-						fallthrough
-					case reflect.Int16:
-						fallthrough
-					case reflect.Int32:
-						fallthrough
-					case reflect.Int:
-						fallthrough
-					case reflect.Uint8:
-						fallthrough
-					case reflect.Uint16:
-						fallthrough
-					case reflect.Uint32:
-						fallthrough
-					case reflect.Uint:
-						if v, err := strconv.Atoi(value); err != nil {
-							return nil, err
-						} else {
-							tmp[k] = v
-						}
-					case reflect.Int64:
-						fallthrough
-					case reflect.Uint64:
-						if v, err := strconv.ParseInt(value, 10, 64); err != nil {
-							return nil, err
-						} else {
-							tmp[k] = v
-						}
-					case reflect.Float64:
-						fallthrough
-					case reflect.Float32:
-						if v, err := strconv.ParseFloat(value, 64); err != nil {
-							return nil, err
-						} else {
-							tmp[k] = v
-						}
-					case reflect.String:
-						tmp[k] = value
+					if err := json.Unmarshal([]byte(tmpValue), &rec); err != nil {
+						panic(err)
+					} else {
+						tmp[k] = rec
+					}
+
+				} else if strings.HasPrefix(tmpValue, "[") && strings.HasSuffix(tmpValue, "]") {
+					var records []interface{}
+
+					if err := json.Unmarshal([]byte(tmpValue), &records); err != nil {
+						panic(err)
+					} else {
+						tmp[k] = records
 					}
 				} else {
-					if intValue, err := strconv.Atoi(value); err == nil {
-						tmp[k] = intValue
-					} else if boolValue, err := strconv.ParseBool(value); err == nil {
-						tmp[k] = boolValue
-					} else {
-						tmp[k] = value
-					}
+					tmp[k] = value
 				}
-
 				continue
 			}
 
